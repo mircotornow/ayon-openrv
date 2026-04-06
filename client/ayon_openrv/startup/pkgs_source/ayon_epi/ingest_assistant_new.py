@@ -415,13 +415,10 @@ class IngestAssistant(QtWidgets.QDockWidget):
             if not sources:
                 return ""
             source = sources[0]
-            
-        logging.warning(f"!!!!!!!!!!{source}!!!!!!!!!!")
 
         lens_focal_key = "EXR/camera_focal"
-        
+
         attributes = commands.sourceAttributes(source)
-        logging.warning(f"!!!!!!!!!!{attributes}!!!!!!!!!!")
 
         for key, value in attributes:
             if key != lens_focal_key:
@@ -612,7 +609,7 @@ class IngestAssistant(QtWidgets.QDockWidget):
             shot_pixel_aspect = self._pixel_aspect_for_lens(self.shot_lens)
             row_frame_start = start_frame + source.handles if source.handles >= 0 else start_frame
             row_frame_end = end_frame - source.handles if source.handles >= 0 else end_frame
-            handles = source.handles if source.handles >= 0 else source.handles
+            handles = source.handles if source.handles >= 0 else 0
 
             if source.variant.startswith(MAIN_VARIANT):
                 shot_frame_start = row_frame_start
@@ -624,7 +621,7 @@ class IngestAssistant(QtWidgets.QDockWidget):
                 "Folder Path": self.ayon_folder_input.text(),
                 "Task Name": "generic",
                 "Product Type": "plate",
-                "Variant": source.variant.split(" ")[ -1],
+                "Variant": source.variant.split(" ")[-1],
                 "Version": "",
                 "Version Comment": source.comment,
                 "Version Thumbnail": "",
@@ -653,6 +650,8 @@ class IngestAssistant(QtWidgets.QDockWidget):
         pd.DataFrame(rows).to_csv(csv_path, index=False, sep=";")
         QtWidgets.QMessageBox.information(self, "Export", f"Exported CSV to:\n{csv_path}")
 
+        self._create_shot_and_task(self.ayon_folder_input.text())
+
         if shot_frame_start is not None and shot_frame_end is not None:
             self._update_shot_frame_range(project_name=PROJECT_NAME, shot_path=self.ayon_folder_input.text(),
                                           frame_start=shot_frame_start, frame_end=shot_frame_end, handles=shot_handles)
@@ -671,6 +670,46 @@ class IngestAssistant(QtWidgets.QDockWidget):
             task="generic"
         )
         dialog.exec_()
+
+    def _create_shot_and_task(self, shot_path: str):
+        """Create AYON shot and task for the given shot path if they don't exist."""
+        folder = ayon_api.get_folder_by_path(PROJECT_NAME, shot_path)
+        if folder:
+            return
+
+        # Shot folder does not exist, create it  path = "scenes/sq0100/sh0100"
+        parent_path = "/".join(shot_path.split("/")[:-1])
+        shot_name = shot_path.split("/")[-1]
+        parent_folder = ayon_api.get_folder_by_path(PROJECT_NAME, parent_path)
+        parent_id = None
+        if not parent_folder:
+            scenes_path = "/".join(parent_path.split("/")[:-1])
+            scenes_folder = ayon_api.get_folder_by_path(PROJECT_NAME, scenes_path)
+            parent_id = ayon_api.create_folder(
+                project_name=PROJECT_NAME,
+                name=parent_path.split("/")[-1],
+                parent_id=scenes_folder["id"],
+                folder_type="Sequence"
+            )
+            ayon_api.create_task(
+                project_name=PROJECT_NAME,
+                name="generic",
+                task_type="Generic",
+                folder_id=parent_id,
+            )
+            parent_folder = ayon_api.get_folder_by_path(PROJECT_NAME, parent_path)
+        shot_id = ayon_api.create_folder(
+            project_name=PROJECT_NAME,
+            name=shot_name,
+            parent_id=parent_id or parent_folder["id"],
+            folder_type="Shot"
+        )
+        ayon_api.create_task(
+            project_name=PROJECT_NAME,
+            name="generic",
+            task_type="Generic",
+            folder_id=shot_id,
+        )
 
 
 class IngestCommandDialog(QtWidgets.QDialog):
