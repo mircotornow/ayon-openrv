@@ -1,0 +1,18 @@
+package: ayon_epi
+author: Mirco Tornow
+organization: Mirco Tornow
+version: 1.0
+rv: 3.12
+openrv: 1.0.0
+requires: ''
+optional: false
+
+modes:
+  - file: ayon_plate_ingest_mode_new
+    menu: AYON/AYON Plate Ingest (New)
+    load: delay
+
+description: |
+
+  <p> Adds AYON to OpenRV </p>
+

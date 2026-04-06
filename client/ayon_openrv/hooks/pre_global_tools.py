@@ -33,7 +33,7 @@ class PreGlobalTools(PreLaunchHook):
         # Packages/ folder then we don't need to `rvpkg -add` them afterwards
         packages_dest_folder = ay_support_path / "Packages"
         packages_dest_folder.mkdir(exist_ok=True)
-        packages = ["ayon_menus", "ayon_scripteditor"]
+        packages = ["ayon_menus", "ayon_scripteditor", "ayon_epi"]
         for package_name in packages:
             package_src = packages_src_folder / package_name
             package_dest = packages_dest_folder / "{}.zip".format(package_name)
