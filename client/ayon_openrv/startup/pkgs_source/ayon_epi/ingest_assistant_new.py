@@ -4,7 +4,7 @@ import logging
 import os
 import re
 import shlex
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Optional
 
@@ -22,8 +22,8 @@ CUSTOM_VARIANT = "Custom"
 DISCARD_VARIANT = "❌ Discard"
 SELECT_LENS = "Select lens..."
 PROJECT_NAME = "EPILOGUE"
-UNDISTORT_MAP_ENV_NAME = "AYON_LENS_UNDISTORT"
-UNDISTORT_MAP_PATH = r"E:\Arbeiten\projects\EPILOGUE\tech\atlasmercury1.5_42mm\publish\image\imageUnidstort\v002\EPI_atlasmercury1.5_42mm_imageUnidstort_v002.exr"
+UNDISTORT_VARIANT = "🔧 Undistort"
+
 
 # Fill lens entity IDs from AYON here (target entities for shot->lens links).
 LENS_ENTITY_IDS_BY_KEY = {
@@ -281,7 +281,18 @@ class IngestAssistant(QtWidgets.QDockWidget):
         frame_start: int,
         frame_end: int,
         handles: int,
+        new_shot: bool
     ) -> bool:
+        """Update AYON shot frame range.
+
+        Args:
+            project_name: The name of the project.
+            shot_path: The path of the shot.
+            frame_start: The start frame of the shot.
+            frame_end: The end frame of the shot.
+            handles: The number of shot handles.
+            new_shot: If the shot was newly created (True) or already existed (False).
+        """
         shot_folder = ayon_api.get_folder_by_path(project_name, shot_path)
         if not shot_folder:
             QtWidgets.QMessageBox.warning(
@@ -316,7 +327,9 @@ class IngestAssistant(QtWidgets.QDockWidget):
             "handleStart": handles,
             "handleEnd": handles,
         }
-        tags.add("changedFrameRate")
+        if not new_shot:
+            # Only add tag to shot if the shot already existed.
+            tags.add("changedFrameRate")
 
         try:
             ayon_api.update_folder(project_name=project_name, folder_id=folder_id, attrib=payload, tags=list(tags))
@@ -547,6 +560,12 @@ class IngestAssistant(QtWidgets.QDockWidget):
             # Move main variant source to the back of the list to set the shot frame start/ end correctly.
             if source.variant == MAIN_VARIANT:
                 self.sources.remove(source)
+
+                # Append undistort variant
+                undistort_source = IngestSource(**asdict(source))
+                undistort_source.variant = UNDISTORT_VARIANT
+                self.sources.append(undistort_source)
+
                 self.sources.append(source)
 
             # Discard sources are removed from the list.
@@ -650,11 +669,11 @@ class IngestAssistant(QtWidgets.QDockWidget):
         pd.DataFrame(rows).to_csv(csv_path, index=False, sep=";")
         QtWidgets.QMessageBox.information(self, "Export", f"Exported CSV to:\n{csv_path}")
 
-        self._create_shot_and_task(self.ayon_folder_input.text())
+        newly_created = self._create_shot_and_task(self.ayon_folder_input.text())
 
         if shot_frame_start is not None and shot_frame_end is not None:
             self._update_shot_frame_range(project_name=PROJECT_NAME, shot_path=self.ayon_folder_input.text(),
-                                          frame_start=shot_frame_start, frame_end=shot_frame_end, handles=shot_handles)
+                                          frame_start=shot_frame_start, frame_end=shot_frame_end, handles=shot_handles, new_shot=newly_created)
 
         self._link_shot_lens_after_ingest(
             project_name=PROJECT_NAME,
@@ -671,11 +690,18 @@ class IngestAssistant(QtWidgets.QDockWidget):
         )
         dialog.exec_()
 
-    def _create_shot_and_task(self, shot_path: str):
-        """Create AYON shot and task for the given shot path if they don't exist."""
+    def _create_shot_and_task(self, shot_path: str) -> bool:
+        """Create AYON shot and task for the given shot path if they don't exist.
+
+        Args:
+            shot_path: Shot path to create shot and task for.
+
+        Returns:
+            True if the shot and task were created, False if they already exist.
+        """
         folder = ayon_api.get_folder_by_path(PROJECT_NAME, shot_path)
         if folder:
-            return
+            return False
 
         # Shot folder does not exist, create it  path = "scenes/sq0100/sh0100"
         parent_path = "/".join(shot_path.split("/")[:-1])
@@ -710,6 +736,7 @@ class IngestAssistant(QtWidgets.QDockWidget):
             task_type="Generic",
             folder_id=shot_id,
         )
+        return True
 
 
 class IngestCommandDialog(QtWidgets.QDialog):
@@ -801,7 +828,6 @@ class IngestCommandDialog(QtWidgets.QDialog):
         env.insert("PYTHONUNBUFFERED", "1")
         env.insert("AYON_LOG_TO_STDOUT", "1")
         # Export both raw env name and token key for toolchains that resolve either style.
-        env.insert(UNDISTORT_MAP_ENV_NAME, UNDISTORT_MAP_PATH)
         self.process.setProcessEnvironment(env)
 
         # Optional: set working dir to the CSV’s folder
