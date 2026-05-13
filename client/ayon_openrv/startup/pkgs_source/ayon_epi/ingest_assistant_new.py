@@ -564,8 +564,6 @@ class IngestAssistant(QtWidgets.QDockWidget):
 
         export_sources = copy.copy(self.sources)
 
-        logging.warning(f"!!!!!!!!!!{self.sources}!!!!!!!!!!")
-
         for source in self.sources:
             # Move main variant source to the back of the list to set the shot frame start/ end correctly.
             if source.variant == MAIN_VARIANT:
