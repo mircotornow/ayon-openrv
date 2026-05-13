@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import logging
 import os
 import re
@@ -267,6 +268,14 @@ class IngestAssistant(QtWidgets.QDockWidget):
             output_type="folder"
         )
 
+        ayon_api.update_folder(
+            project_name=project_name,
+            folder_id=shot_folder["id"],
+            attrib={
+                "pixelAspect": self._pixel_aspect_for_lens(lens_key)
+            }
+        )
+
         # QtWidgets.QMessageBox.information(
         #     self,
         #     "Lens Link",
@@ -274,7 +283,7 @@ class IngestAssistant(QtWidgets.QDockWidget):
         # )
         return True
 
-    def _update_shot_frame_range(
+    def _update_shot(
         self,
         project_name: str,
         shot_path: str,
@@ -489,9 +498,6 @@ class IngestAssistant(QtWidgets.QDockWidget):
                     )
                     self.sources.append(src)
 
-                    # Set the pixel aspect ratio
-                    set_pixel_aspect(src.source_node, 1.5)
-
                     break
             except Exception as e:
                 print(f"Error loading source from {subfolder.as_posix()}: {e}")
@@ -556,21 +562,25 @@ class IngestAssistant(QtWidgets.QDockWidget):
 
         variant_counts = {}
 
-        for source in self.sources[:]:
+        export_sources = copy.copy(self.sources)
+
+        logging.warning(f"!!!!!!!!!!{self.sources}!!!!!!!!!!")
+
+        for source in self.sources:
             # Move main variant source to the back of the list to set the shot frame start/ end correctly.
             if source.variant == MAIN_VARIANT:
-                self.sources.remove(source)
+                export_sources.remove(source)
 
                 # Append undistort variant
                 undistort_source = IngestSource(**asdict(source))
                 undistort_source.variant = UNDISTORT_VARIANT
-                self.sources.append(undistort_source)
+                export_sources.append(undistort_source)
 
-                self.sources.append(source)
+                export_sources.append(source)
 
             # Discard sources are removed from the list.
             if source.variant == DISCARD_VARIANT:
-                self.sources.remove(source)
+                export_sources.remove(source)
 
             # Check for duplicate variants
             if source.variant in variant_counts:
@@ -582,7 +592,7 @@ class IngestAssistant(QtWidgets.QDockWidget):
             else:
                 variant_counts[source.variant] = 1
 
-        for source in self.sources:
+        for source in export_sources:
             # Switch to source view to check for marked frames.
             source.set_as_view_node()
             commands.redraw()
@@ -673,8 +683,9 @@ class IngestAssistant(QtWidgets.QDockWidget):
         newly_created = self._create_shot_and_task(self.ayon_folder_input.text())
 
         if shot_frame_start is not None and shot_frame_end is not None:
-            self._update_shot_frame_range(project_name=PROJECT_NAME, shot_path=self.ayon_folder_input.text(),
-                                          frame_start=shot_frame_start, frame_end=shot_frame_end, handles=shot_handles, new_shot=newly_created)
+            self._update_shot(project_name=PROJECT_NAME, shot_path=self.ayon_folder_input.text(),
+                              frame_start=shot_frame_start, frame_end=shot_frame_end, handles=shot_handles,
+                              new_shot=newly_created)
 
         self._link_shot_lens_after_ingest(
             project_name=PROJECT_NAME,
