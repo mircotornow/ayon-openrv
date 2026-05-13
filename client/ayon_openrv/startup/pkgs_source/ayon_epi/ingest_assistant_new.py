@@ -600,7 +600,8 @@ class IngestAssistant(QtWidgets.QDockWidget):
             if not marked:
                 marked = set(full_frame_set)
 
-            file_name, _ = media_path.stem.split(".")
+            # Remove extension and frames
+            file_name = Path(media_path.stem).stem
             file_ext = media_path.suffix
             dir_path = media_path.parent
             start_frame = min(marked)
