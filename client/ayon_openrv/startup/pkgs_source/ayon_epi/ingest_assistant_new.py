@@ -805,6 +805,7 @@ class IngestCommandDialog(QtWidgets.QDialog):
         args = [
             "addon", "traypublisher", "ingestcsv",
             "--filepath", csv_filepath,
+            "--preset", "Default",
             "--project", project,
             "--folder-path", str(Path(folder_path).parent),
             "--task", task,
